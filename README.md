@@ -1,38 +1,22 @@
-# Nilabiru Data Hub Agent
+# Nilabiru Portainer Agent
 
-A lightweight companion stack for the [Nilabiru Data Hub](https://github.com/andry-pebrianto/nilabiru-data-hub), designed to be deployed on a separate server and connected back to the main hub for centralized Docker management and secure remote access via Tailscale.
+A lightweight Docker Compose setup that runs the Portainer Agent, enabling remote Docker environment management from a central Portainer CE instance in the Nilabiru ecosystem.
 
 ---
 
 ## Overview
 
-**Nilabiru Data Hub Agent** provisions two services on a remote server — a Portainer Agent that registers itself to the Portainer instance running on the main Nilabiru Data Hub, and a Tailscale VPN tunnel to ensure secure connectivity between the two nodes. Deployments are fully automated via GitHub Actions on every push to `main`.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────┐        Tailscale VPN         ┌─────────────────────────────┐
-│     Nilabiru Data Hub       │ ◄──────────────────────────► │   Nilabiru Data Hub Agent   │
-│                             │                              │                             │
-│  • Portainer (server)  9443 │                              │  • Portainer Agent     9001 │
-│  • Redis, PostgreSQL, etc.  │                              │  • Tailscale                │
-└─────────────────────────────┘                              └─────────────────────────────┘
-```
-
-The Portainer server on the main hub manages this agent remotely by connecting to it as an **Agent** environment over the Tailscale network.
+**Nilabiru Portainer Agent** deploys a single [Portainer Agent](https://docs.portainer.io/admin/environments/add/docker/agent) container on a remote Docker host. Once running, the agent exposes port `9001` so that a central Portainer CE instance (such as the one running in `nilabiru-data-hub`) can connect to and manage this host's containers, images, volumes, and networks from a single web UI. Deployments are fully automated via GitHub Actions on every push to `main`.
 
 ---
 
 ## Services
 
-| Service             | Image                        | Port(s) | Description                                                        |
-| ------------------- | ---------------------------- | ------- | ------------------------------------------------------------------ |
-| **Portainer Agent** | `portainer/agent:latest`     | `9001`  | Exposes the local Docker engine to the Portainer server on the hub |
-| **Tailscale**       | `tailscale/tailscale:latest` | —       | VPN tunnel for secure connectivity back to the main hub            |
+| Service                      | Image                    | Port   | Description                                                                          |
+| ---------------------------- | ------------------------ | ------ | ------------------------------------------------------------------------------------ |
+| **nilabiru-portainer-agent** | `portainer/agent:2.42.0` | `9001` | Portainer Agent that exposes the local Docker environment to a Portainer CE instance |
 
-Portainer Agent is connected to a bridge network named `nilabiru-data-hub-agent`. Tailscale uses `host` network mode.
+The agent is attached to a dedicated bridge network (`nilabiru-data-hub-agent`) and has access to the Docker socket and volumes directory on the host so Portainer CE can manage them remotely.
 
 ---
 
@@ -40,8 +24,8 @@ Portainer Agent is connected to a bridge network named `nilabiru-data-hub-agent`
 
 - Docker Engine `20.10+`
 - Docker Compose `v2+`
-- A [Tailscale](https://tailscale.com) account with an auth key (same tailnet as the main hub)
-- The main **Nilabiru Data Hub** already running with Portainer accessible at `https://nilabiru-data-hub:9443`
+- Port `9001` reachable from the host running Portainer CE (either via Tailscale, VPN, or direct network access)
+- A running Portainer CE instance to connect to this agent
 
 ---
 
@@ -50,90 +34,61 @@ Portainer Agent is connected to a bridge network named `nilabiru-data-hub-agent`
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/andry-pebrianto/nilabiru-data-hub-agent.git
-cd nilabiru-data-hub-agent
+git clone https://github.com/<your-org>/<this-repo>.git
+cd <this-repo>
 ```
 
-### 2. Configure environment variables
+### 2. Start the agent
 
-Copy the provided `env` file and fill in all values:
-
-```bash
-cp env .env
-```
-
-Then edit `.env`:
-
-```env
-# Tailscale
-TAILSCALE_AUTHKEY=tskey-auth-xxxxx
-TS_HOSTNAME=nilabiru-data-hub-agent
-```
-
-> **Note:** Never commit `.env` to version control. It is already listed in `.gitignore`.
-
-### 3. Start the stack
+No environment variables or `.env` file are required. Simply run:
 
 ```bash
 docker compose up -d
 ```
 
-To verify all services are running:
+To verify the agent is running:
 
 ```bash
 docker compose ps
 ```
 
----
+### 3. Connect from Portainer CE
 
-## Connecting to the Main Hub
+In your Portainer CE instance:
 
-Once this agent is running and reachable over Tailscale, register it in the Portainer instance on the main hub:
+1. Go to **Environments → Add environment**.
+2. Choose **Docker Standalone** → **Agent**.
+3. Enter a name for this environment and set the **Agent URL** to `<HOST_IP>:9001`.
+4. Click **Add environment**.
 
-1. Open Portainer on the main hub at `https://nilabiru-data-hub:9443`
-2. Go to **Environments → Add environment**
-3. Select **Agent**
-4. Set the environment URL to `nilabiru-data-hub-agent:9001`
-5. Save — the agent server will now appear in Portainer's environment list
-
----
-
-## Service Access
-
-| Service         | URL / Address                                  |
-| --------------- | ---------------------------------------------- |
-| Portainer Agent | `localhost:9001`                               |
-| Portainer Agent | `nilabiru-data-hub-agent:9001` (via Tailscale) |
+> **Note:** Replace `<HOST_IP>` with the IP address or hostname of the machine running this agent that is reachable from your Portainer CE instance (e.g. a Tailscale IP).
 
 ---
 
 ## Data Persistence
 
-| Volume           | Service   |
-| ---------------- | --------- |
-| `tailscale-data` | Tailscale |
+This service does not persist any data of its own. It mounts two paths from the host read-write so Portainer CE can inspect and manage them:
 
-The Portainer Agent mounts the Docker socket and volumes directory from the host directly and does not require a named volume.
+| Mount                     | Type       | Purpose                             |
+| ------------------------- | ---------- | ----------------------------------- |
+| `/var/run/docker.sock`    | Bind mount | Docker socket access for API calls  |
+| `/var/lib/docker/volumes` | Bind mount | Volume browsing via Portainer CE UI |
 
 ---
 
 ## CI/CD Deployment
 
-This project uses GitHub Actions for continuous deployment. On every push to the `main` branch, the workflow:
+This project uses GitHub Actions for continuous deployment, running on a **self-hosted runner**. On every push to the `main` branch, the workflow at `.github/workflows/deploy.yml`:
 
-1. Checks out the latest code and pulls from `origin main` on the self-hosted runner.
+1. Checks out the latest code on the self-hosted runner.
 2. Validates the Compose configuration with `docker compose config`.
-3. Restarts all services with `docker compose up -d --remove-orphans`.
-4. Polls container status every 10 seconds, up to a maximum of 180 seconds.
-5. Exits successfully once all containers are `running`; fails with a list of unhealthy containers if the timeout is reached.
+3. Deploys/redeploys the agent with `docker compose up -d --remove-orphans`.
 
-The workflow file is located at `.github/workflows/deploy.yml`. A self-hosted GitHub Actions runner must be configured on the target server for this to work.
+> **Note:** No secrets or `.env` file are required for this workflow — the agent container has no configurable credentials.
 
----
+> **Note:** The workflow does not currently perform a post-deploy health check; it finishes as soon as `docker compose up -d` completes. Run `docker compose ps` on the server afterward to confirm the container is `running`.
 
-## Health Checks
-
-Neither Portainer Agent nor Tailscale define Docker health checks by default, so the CI/CD health check step treats a `running` status with `health: none` as passing.
+A self-hosted GitHub Actions runner must be configured on the target server for this workflow to run.
 
 ---
 

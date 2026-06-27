@@ -1,8 +1,8 @@
 services:
   nilabiru-portainer-agent:
-    image: portainer/agent:latest
+    image: portainer/agent:2.42.0
     container_name: nilabiru-portainer-agent
-    restart: always
+    restart: unless-stopped
     ports:
       - "9001:9001"
     volumes:
@@ -10,25 +10,6 @@ services:
       - /var/lib/docker/volumes:/var/lib/docker/volumes
     networks:
       - nilabiru-data-hub-agent
-
-  nilabiru-tailscale:
-    image: tailscale/tailscale:latest
-    container_name: nilabiru-tailscale
-    restart: always
-    environment:
-      - TS_AUTHKEY=${TAILSCALE_AUTHKEY}
-      - TS_STATE_DIR=/var/lib/tailscale
-      - TS_HOSTNAME=${TS_HOSTNAME}
-    volumes:
-      - tailscale-data:/var/lib/tailscale
-      - /dev/net/tun:/dev/net/tun
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    network_mode: host
-
-volumes:
-  tailscale-data:
 
 networks:
   nilabiru-data-hub-agent:
