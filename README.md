@@ -16,8 +16,6 @@ A lightweight Docker Compose setup that runs the Portainer Agent, enabling remot
 | ---------------------------- | ------------------------ | ------ | ------------------------------------------------------------------------------------ |
 | **nilabiru-portainer-agent** | `portainer/agent:2.42.0` | `9001` | Portainer Agent that exposes the local Docker environment to a Portainer CE instance |
 
-The agent is attached to a dedicated bridge network (`nilabiru-data-hub-agent`) and has access to the Docker socket and volumes directory on the host so Portainer CE can manage them remotely.
-
 ---
 
 ## Requirements
@@ -34,8 +32,8 @@ The agent is attached to a dedicated bridge network (`nilabiru-data-hub-agent`) 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-org>/<this-repo>.git
-cd <this-repo>
+git clone https://github.com/andry-pebrianto/nilabiru-data-hub-agent.git
+cd nilabiru-data-hub-agent
 ```
 
 ### 2. Start the agent
