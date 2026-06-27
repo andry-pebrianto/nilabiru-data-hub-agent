@@ -17,4 +17,4 @@ jobs:
         run: docker compose config --quiet
 
       - name: Run Deploy Script
-        run: docker compose up -d --remove-orphans
+        run: docker compose up -d --remove-orphans --build

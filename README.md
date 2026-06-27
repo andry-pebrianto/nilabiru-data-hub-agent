@@ -80,7 +80,7 @@ This project uses GitHub Actions for continuous deployment, running on a **self-
 
 1. Checks out the latest code on the self-hosted runner.
 2. Validates the Compose configuration with `docker compose config`.
-3. Deploys/redeploys the agent with `docker compose up -d --remove-orphans`.
+3. Deploys/redeploys the agent with `docker compose up -d --remove-orphans --build`.
 
 > **Note:** No secrets or `.env` file are required for this workflow — the agent container has no configurable credentials.
 
