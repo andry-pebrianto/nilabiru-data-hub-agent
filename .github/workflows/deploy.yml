@@ -18,3 +18,7 @@ jobs:
 
       - name: Run Deploy Script
         run: docker compose up -d --remove-orphans --build
+
+      - name: Cleanup unused images
+        if: always()
+        run: docker image prune -f
